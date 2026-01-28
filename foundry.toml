@@ -5,7 +5,8 @@ libs = ["lib"]
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "@gnosis/conditional-tokens/=lib/conditional-tokens-contracts/contracts/",
-    "@euler/=lib/euler-vault-kit/src/",
+    "@euler/=lib/euler-vault-kit/src",
+    "@ethereum-vault-connector/=lib/euler-vault-kit/lib/ethereum-vault-connector/src",
     "forge-std/=lib/forge-std/src/"
 ]
 

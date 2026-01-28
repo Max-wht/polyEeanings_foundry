@@ -5,8 +5,9 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IPositionHolderFactory} from "./Interface/Factory/IPositionHolderFactory.sol";
+import {EVCUtil} from "@ethereum-vault-connector/utils/EVCUtil.sol";
 
-contract PositionHolder is ERC1155Holder {
+contract PositionHolder is ERC1155Holder, EVCUtil {
     IPositionHolderFactory public immutable i_factory;
     IERC1155 public immutable i_market;
 
@@ -28,7 +29,7 @@ contract PositionHolder is ERC1155Holder {
     /*//////////////////////////////////////////////////////////////
                                   INIT
     //////////////////////////////////////////////////////////////*/
-    constructor(address _market) {
+    constructor(address _market, address _evc) EVCUtil(_evc) {
         i_factory = IPositionHolderFactory(msg.sender);
         i_market = IERC1155(_market);
     }
@@ -36,6 +37,20 @@ contract PositionHolder is ERC1155Holder {
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTION
     //////////////////////////////////////////////////////////////*/
+    ///@dev deposit the position to the position holder
+    function deposit(address from) external {}
+
+    ///@dev withdraw the position from the position holder, and check the account status in Euler
+    function withdraw(address from) external {
+        //code above
+        evc.requireAccountStatus(from);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           PUBLIC FUNCTION
+    //////////////////////////////////////////////////////////////*/
+    ///@dev Euler use this function to get the total value of the position
+    function balanceOf(address) public view returns (uint256 totalValue) {}
 
     /// @dev the override function for the ERC1155Receiver interface
     function onERC1155Received(address operator, address from, uint256 id, uint256 value, bytes memory data)
