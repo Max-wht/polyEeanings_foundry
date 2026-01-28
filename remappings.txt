@@ -1,4 +1,0 @@
-@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
-@gnosis/conditional-tokens/=lib/conditional-tokens-contracts/contracts/
-@euler/=lib/euler-vault-kit/src/
-forge-std/=lib/forge-std/src/
