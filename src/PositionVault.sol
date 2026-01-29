@@ -38,10 +38,12 @@ contract PositionVault is ERC20, ERC1155Holder, EVCUtil {
         i_market.safeTransferFrom(_msgSender(), address(this), i_positionId, assets, "");
     }
 
+    ///@dev owner withdraws. receiver receives the CTF
     function withdraw(uint256 assets, address owner, address receiver) external returns (uint256 shares) {
         shares = assets; // 1:1
-        if (_msgSender() != owner) {
-            _spendAllowance(owner, _msgSender(), shares);
+        address sender = _msgSender();
+        if (sender != owner) {
+            _spendAllowance(owner, sender, shares);
         }
         _burn(owner, shares);
 
@@ -49,11 +51,13 @@ contract PositionVault is ERC20, ERC1155Holder, EVCUtil {
 
         i_market.safeTransferFrom(address(this), receiver, i_positionId, assets, "");
 
-        evc.requireAccountStatusCheck(receiver);
+        evc.requireAccountStatusCheck(owner);
     }
 
-    ///@dev Use PriceOracle to get the price of the position
-    function balanceOf(address owner) public view override returns (uint256) {}
+    ///@dev Returns the shares balance of the owner (used by Euler as collateral balance)
+    function balanceOf(address owner) public view override returns (uint256) {
+        return super.balanceOf(owner);
+    }
 
     function balanceOfAssets(address owner) public view returns (uint256) {
         return i_market.balanceOf(owner, i_positionId);
