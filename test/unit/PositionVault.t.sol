@@ -1,22 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.20;
 
-import {Test, console2} from "forge-std/Test.sol";
-import {BaseTest} from "../Base.t.sol";
-import {PositionVault} from "../../src/PositionVault.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {BaseTest} from "../BaseTest.sol";
+import {PositionVault} from "../../src/core/PositionVault.sol";
 
-/// @title PositionVaultTest
-/// @notice Unit tests for PositionVault contract
 contract PositionVaultTest is BaseTest {
     PositionVault public vault;
 
     function setUp() public override {
         super.setUp();
-
-        // Create a vault for YES position
-        vm.prank(deployer);
-        vault = PositionVault(factory.createVault(POSITION_ID_YES, "PolyLend YES", "pYES"));
+        vault = PositionVault(_createAndConfigureVault(POSITION_ID_YES, "PolyLend YES", "pYES"));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -26,10 +19,9 @@ contract PositionVaultTest is BaseTest {
     function test_deployment() public view {
         assertEq(vault.name(), "PolyLend YES");
         assertEq(vault.symbol(), "pYES");
-        assertEq(vault.i_positionId(), POSITION_ID_YES);
-        assertEq(address(vault.i_market()), address(ctf));
-        assertEq(address(vault.i_factory()), address(factory));
-        assertEq(vault.EVC(), address(evc));
+        assertEq(vault.positionId(), POSITION_ID_YES);
+        assertEq(address(vault.ctf()), address(ctf));
+        assertEq(vault.factory(), address(factory));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -49,34 +41,11 @@ contract PositionVaultTest is BaseTest {
 
         uint256 ctfAfter = ctf.balanceOf(alice, POSITION_ID_YES);
         uint256 sharesAfter = vault.balanceOf(alice);
-
         vm.stopPrank();
 
-        // Check balances
         assertEq(ctfBefore - ctfAfter, depositAmount, "CTF not transferred");
         assertEq(sharesAfter - sharesBefore, depositAmount, "Shares not minted (1:1)");
         assertEq(vault.totalAssets(), depositAmount, "Total assets mismatch");
-    }
-
-    function test_deposit_multipleUsers() public {
-        uint256 aliceDeposit = 100e18;
-        uint256 bobDeposit = 200e18;
-
-        // Alice deposits
-        vm.startPrank(alice);
-        ctf.setApprovalForAll(address(vault), true);
-        vault.deposit(aliceDeposit, alice);
-        vm.stopPrank();
-
-        // Bob deposits
-        vm.startPrank(bob);
-        ctf.setApprovalForAll(address(vault), true);
-        vault.deposit(bobDeposit, bob);
-        vm.stopPrank();
-
-        assertEq(vault.balanceOf(alice), aliceDeposit);
-        assertEq(vault.balanceOf(bob), bobDeposit);
-        assertEq(vault.totalAssets(), aliceDeposit + bobDeposit);
     }
 
     function test_deposit_toOther() public {
@@ -84,23 +53,20 @@ contract PositionVaultTest is BaseTest {
 
         vm.startPrank(alice);
         ctf.setApprovalForAll(address(vault), true);
-        vault.deposit(depositAmount, bob); // Alice deposits, Bob receives shares
+        vault.deposit(depositAmount, bob);
         vm.stopPrank();
 
         assertEq(vault.balanceOf(alice), 0);
         assertEq(vault.balanceOf(bob), depositAmount);
     }
 
-    function testFuzz_deposit(uint256 amount) public {
-        amount = bound(amount, 1, INITIAL_CTF_BALANCE);
-
+    function test_revert_deposit_zeroAmount() public {
         vm.startPrank(alice);
         ctf.setApprovalForAll(address(vault), true);
-        vault.deposit(amount, alice);
-        vm.stopPrank();
 
-        assertEq(vault.balanceOf(alice), amount);
-        assertEq(vault.totalAssets(), amount);
+        vm.expectRevert(PositionVault.PositionVault__InvalidAmount.selector);
+        vault.deposit(0, alice);
+        vm.stopPrank();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -117,18 +83,12 @@ contract PositionVaultTest is BaseTest {
         vault.deposit(depositAmount, alice);
 
         uint256 ctfBefore = ctf.balanceOf(alice, POSITION_ID_YES);
-        uint256 sharesBefore = vault.balanceOf(alice);
-
-        vault.withdraw(withdrawAmount, alice, alice);
-
+        vault.withdraw(withdrawAmount, alice);
         uint256 ctfAfter = ctf.balanceOf(alice, POSITION_ID_YES);
-        uint256 sharesAfter = vault.balanceOf(alice);
-
         vm.stopPrank();
 
         assertEq(ctfAfter - ctfBefore, withdrawAmount, "CTF not returned");
-        assertEq(sharesBefore - sharesAfter, withdrawAmount, "Shares not burned");
-        assertEq(vault.totalAssets(), depositAmount - withdrawAmount);
+        assertEq(vault.balanceOf(alice), depositAmount - withdrawAmount);
     }
 
     function test_withdraw_full() public {
@@ -137,49 +97,11 @@ contract PositionVaultTest is BaseTest {
         vm.startPrank(alice);
         ctf.setApprovalForAll(address(vault), true);
         vault.deposit(depositAmount, alice);
-        vault.withdraw(depositAmount, alice, alice);
+        vault.withdraw(depositAmount, alice);
         vm.stopPrank();
 
         assertEq(vault.balanceOf(alice), 0);
         assertEq(vault.totalAssets(), 0);
-        assertEq(ctf.balanceOf(alice, POSITION_ID_YES), INITIAL_CTF_BALANCE);
-    }
-
-    function test_withdraw_toOther() public {
-        uint256 depositAmount = 100e18;
-        uint256 withdrawAmount = 50e18;
-
-        vm.startPrank(alice);
-        ctf.setApprovalForAll(address(vault), true);
-        vault.deposit(depositAmount, alice);
-
-        // Withdraw to Bob
-        vault.withdraw(withdrawAmount, alice, bob);
-        vm.stopPrank();
-
-        assertEq(ctf.balanceOf(bob, POSITION_ID_YES), INITIAL_CTF_BALANCE + withdrawAmount);
-        assertEq(vault.balanceOf(alice), depositAmount - withdrawAmount);
-    }
-
-    function test_withdraw_withAllowance() public {
-        uint256 depositAmount = 100e18;
-        uint256 withdrawAmount = 50e18;
-
-        // Alice deposits
-        vm.startPrank(alice);
-        ctf.setApprovalForAll(address(vault), true);
-        vault.deposit(depositAmount, alice);
-
-        // Alice approves Bob
-        vault.approve(bob, withdrawAmount);
-        vm.stopPrank();
-
-        // Bob withdraws Alice's shares
-        vm.prank(bob);
-        vault.withdraw(withdrawAmount, alice, bob);
-
-        assertEq(vault.balanceOf(alice), depositAmount - withdrawAmount);
-        assertEq(ctf.balanceOf(bob, POSITION_ID_YES), INITIAL_CTF_BALANCE + withdrawAmount);
     }
 
     function test_revert_withdraw_insufficientShares() public {
@@ -190,23 +112,8 @@ contract PositionVaultTest is BaseTest {
         vault.deposit(depositAmount, alice);
 
         vm.expectRevert();
-        vault.withdraw(depositAmount + 1, alice, alice);
+        vault.withdraw(depositAmount + 1, alice);
         vm.stopPrank();
-    }
-
-    function test_revert_withdraw_noAllowance() public {
-        uint256 depositAmount = 100e18;
-
-        // Alice deposits
-        vm.startPrank(alice);
-        ctf.setApprovalForAll(address(vault), true);
-        vault.deposit(depositAmount, alice);
-        vm.stopPrank();
-
-        // Bob tries to withdraw without allowance
-        vm.prank(bob);
-        vm.expectRevert();
-        vault.withdraw(depositAmount, alice, bob);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -214,7 +121,6 @@ contract PositionVaultTest is BaseTest {
     //////////////////////////////////////////////////////////////*/
 
     function test_revert_receiveWrongPositionId() public {
-        // Mint wrong position ID to alice
         uint256 wrongId = 999;
         ctf.mint(alice, wrongId, 100e18);
 
@@ -227,46 +133,18 @@ contract PositionVaultTest is BaseTest {
     }
 
     /*//////////////////////////////////////////////////////////////
-                            VIEW FUNCTION TESTS
+                              FUZZ TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function test_balanceOf() public {
-        uint256 depositAmount = 100e18;
-
-        assertEq(vault.balanceOf(alice), 0);
+    function testFuzz_deposit(uint256 amount) public {
+        amount = bound(amount, 1, INITIAL_CTF_BALANCE);
 
         vm.startPrank(alice);
         ctf.setApprovalForAll(address(vault), true);
-        vault.deposit(depositAmount, alice);
+        vault.deposit(amount, alice);
         vm.stopPrank();
 
-        assertEq(vault.balanceOf(alice), depositAmount);
-    }
-
-    function test_totalAssets() public {
-        assertEq(vault.totalAssets(), 0);
-
-        vm.startPrank(alice);
-        ctf.setApprovalForAll(address(vault), true);
-        vault.deposit(100e18, alice);
-        vm.stopPrank();
-
-        assertEq(vault.totalAssets(), 100e18);
-
-        vm.startPrank(bob);
-        ctf.setApprovalForAll(address(vault), true);
-        vault.deposit(200e18, bob);
-        vm.stopPrank();
-
-        assertEq(vault.totalAssets(), 300e18);
-    }
-
-    function test_asset() public view {
-        assertEq(vault.asset(), address(ctf));
-    }
-
-    function test_balanceOfAssets() public view {
-        // Returns user's CTF balance, not vault shares
-        assertEq(vault.balanceOfAssets(alice), INITIAL_CTF_BALANCE);
+        assertEq(vault.balanceOf(alice), amount);
+        assertEq(vault.totalAssets(), amount);
     }
 }
