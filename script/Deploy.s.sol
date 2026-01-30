@@ -62,8 +62,8 @@ contract DeployAmoy is Script {
     PolyLendRouter public router;
 
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        address deployer = vm.addr(deployerPrivateKey);
+        // 使用 --account 或 --private-key 传入的账户
+        address deployer = msg.sender;
 
         console2.log("===========================================");
         console2.log("  PolyLend - Polygon Amoy Testnet Deploy");
@@ -72,7 +72,7 @@ contract DeployAmoy is Script {
         console2.log("Chain ID:", block.chainid);
         console2.log("");
 
-        vm.startBroadcast(deployerPrivateKey);
+        vm.startBroadcast();
 
         // 1. Deploy mock tokens
         usdc = new MockUSDC();
