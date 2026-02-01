@@ -41,7 +41,7 @@
 
 ```js
 # 合约地址
-export RPC_URL="https://polygon-amoy.g.alchemy.com/v2/irKdxT_Mb1x743xpHjwFb"
+export RPC_URL="https://polygon-amoy.g.alchemy.com/v2/<API_KEY>"
 export USDC="0xDF3B67F50e92852168Fb5cD6048D76cF3447D8a0"
 export CTF="0x7E620820562bcA813cbBf4AAc171989b8abdFc2b"
 export FACTORY="0x300B07ADbb3F5A6a842CE3D18F74823682F0c214"
